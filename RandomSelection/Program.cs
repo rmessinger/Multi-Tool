@@ -1,7 +1,9 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using ConsoleApplications.Decider;
+using System;
+using WebTools;
 
-using ConsoleApplications.Decider;
-
-Decider application = new Decider();
-
+// Decider application = new Decider();
+F1Stats application = new F1Stats();
 application.Run();
+
+// Console.ReadLine();
