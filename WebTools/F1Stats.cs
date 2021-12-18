@@ -5,20 +5,22 @@ using System.Xml.Serialization;
 using System.Net.Http;
 using System.IO;
 using RestSharp;
+using WebTools.Model;
 
 namespace WebTools
 {
     public class F1Stats
     {
-        public async void Run()
+        public void Run()
         {
             var client = new RestClient("http://ergast.com/api/f1/drivers?=123");
+            //var client = new RestClient("http://ergast.com/api/f1/2021");
             client.Timeout = -1;
             var request = new RestRequest(Method.GET);
             IRestResponse response = client.Execute(request);
-
-            XmlSerializer deserializer = new XmlSerializer(typeof(MRData));
-            MRData result = (MRData)deserializer.Deserialize(GenerateStreamFromString(response.Content));
+            XmlSerializer deserializer = new XmlSerializer(typeof(DriverResponse));
+            DriverResponse result = new DriverResponse();
+            result = (DriverResponse)deserializer.Deserialize(GenerateStreamFromString(response.Content));
             
             if (result.DriverTable.Length < result.total)
             {
