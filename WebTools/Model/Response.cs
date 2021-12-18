@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using WebTools.Interfaces;
+
 namespace WebTools.Model
 {
     /// <remarks/>
@@ -20,7 +22,6 @@ namespace WebTools.Model
 
         private ushort totalField;
 
-
         /// <remarks/>
         [System.Xml.Serialization.XmlAttributeAttribute()]
         public string series
@@ -34,6 +35,9 @@ namespace WebTools.Model
                 this.seriesField = value;
             }
         }
+
+        // Can this work? I'm not sure
+        // public virtual DataType[] ResponseTable {get; set;}
 
         /// <remarks/>
         [System.Xml.Serialization.XmlAttributeAttribute()]

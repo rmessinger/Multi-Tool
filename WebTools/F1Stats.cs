@@ -6,39 +6,97 @@ using System.Net.Http;
 using System.IO;
 using RestSharp;
 using WebTools.Model;
+using System.Linq;
 
 namespace WebTools
 {
     public class F1Stats
     {
+        private const string CacheDirectory = "C:\\Users\\reidm\\OneDrive\\Documents\\F1Stats\\";
+        private const string SeasonsUrlBase = "http://ergast.com/api/f1/seasons";
+        private const string RacesInSeasonBase = "http://ergast.com/api/f1/";
+
+        private XmlSerializer seasonSerializer;
+        private XmlSerializer raceSerializer;
+        private XmlSerializer driverSerializer;
+        private XmlSerializer constructorSerializer;
+        private XmlSerializer standingsSerializer;
+        private XmlSerializer statusSerializer;
+
+        public F1Stats()
+        {
+            this.seasonSerializer = new XmlSerializer(typeof(SeasonsResponse));
+            this.raceSerializer = new XmlSerializer(typeof(RaceResponse));
+            this.driverSerializer = new XmlSerializer(typeof(DriverResponse));
+            this.constructorSerializer = new XmlSerializer(typeof(ConstructorResponse));
+            this.standingsSerializer = new XmlSerializer(typeof(StandingsResponse));
+            this.statusSerializer = new XmlSerializer(typeof(StatusResponse));
+        }
+
         public void Run()
         {
-            var client = new RestClient("http://ergast.com/api/f1/drivers?=123");
-            //var client = new RestClient("http://ergast.com/api/f1/2021");
+            // var client = new RestClient("http://ergast.com/api/f1/drivers?=123");
+            // var client = new RestClient("http://ergast.com/api/f1/2021");
+            
+            // get all seasons
+            SeasonsResponse allSeasons = (SeasonsResponse)this.GetFullSeasonTable(SeasonsUrlBase);
+            IDictionary<int, RaceResponse> racesResponse = new Dictionary<int, RaceResponse>();
+
+            foreach (Season season in allSeasons.SeasonTable)
+            {
+                racesResponse.Add(season.Value, (RaceResponse)this.GetFullRaceTable(RacesInSeasonBase + season.Value.ToString()));
+            }
+        }
+
+        private Response GetFullSeasonTable(string urlBase)
+        {
+            StringBuilder url = new StringBuilder(urlBase);
+            SeasonsResponse result = (SeasonsResponse)this.GetPage(url.ToString(), this.seasonSerializer);
+            int limit = result.limit;
+            
+            // Initialize list of seasons
+            while (result.SeasonTable.Length < result.total)
+            {
+                url.Append($"?limit={limit}&offset={result.SeasonTable.Length}");
+                SeasonsResponse response = (SeasonsResponse)this.GetPage(url.ToString(), this.seasonSerializer);
+                result.SeasonTable = result.SeasonTable.Concat(response.SeasonTable).ToArray();
+            }
+
+            return result;
+        }
+
+        private Response GetFullRaceTable(string urlBase)
+        {
+            StringBuilder url = new StringBuilder(urlBase);
+            RaceResponse result = (RaceResponse)this.GetPage(url.ToString(), this.raceSerializer);
+            int limit = result.limit;
+
+            // Initialize list of seasons
+            while (result.RaceTable.Length < result.total)
+            {
+                url.Append($"?limit={limit}&offset={result.RaceTable.Length}");
+                RaceResponse response = (RaceResponse)this.GetPage(url.ToString(), this.raceSerializer);
+                result.RaceTable = result.RaceTable.Concat(response.RaceTable).ToArray();
+            }
+
+            return result;
+        }
+
+        private Response GetPage(string url, XmlSerializer serializer)
+        {
+            var client = new RestClient(url.ToString());
             client.Timeout = -1;
             var request = new RestRequest(Method.GET);
             IRestResponse response = client.Execute(request);
-            XmlSerializer deserializer = new XmlSerializer(typeof(DriverResponse));
-            DriverResponse result = new DriverResponse();
-            result = (DriverResponse)deserializer.Deserialize(GenerateStreamFromString(response.Content));
-            
-            if (result.DriverTable.Length < result.total)
-            {
-            
-            }
-            // File.WriteAllText("C:\\dev\\PitStops.xml", response.Content);
+            Response result = (Response)serializer.Deserialize(GenerateStreamFromString(response.Content));
+            return result;
+        }
 
-            //HttpContent responseContent = response.Content;
-            //MRData result = new MRData();
-            //XmlSerializer deserializer = new XmlSerializer(typeof(MRData));
-
-            //// Get the stream of the content.
-            //using (var reader = new StreamReader(await responseContent.ReadAsStreamAsync()))
-            //{
-            //    // Write the output.
-            //    //File.WriteAllText("C:\\dev\\StatsOutput.xml", await reader.ReadToEndAsync());
-            //    result = (MRData)deserializer.Deserialize(reader);
-            //}
+        private void SaveResults(string fileName, Response result, XmlSerializer serializer)
+        {
+            string path = CacheDirectory + fileName;
+            System.IO.FileStream file = System.IO.File.OpenWrite(path);
+            serializer.Serialize(file, result);
         }
 
         private static Stream GenerateStreamFromString(string s)

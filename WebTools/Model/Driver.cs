@@ -1,8 +1,9 @@
-﻿/// <remarks/>
+﻿using WebTools.Interfaces;
+/// <remarks/>
 [System.SerializableAttribute()]
 [System.ComponentModel.DesignerCategoryAttribute("code")]
 [System.Xml.Serialization.XmlTypeAttribute(AnonymousType = true, Namespace = "http://ergast.com/mrd/1.4")]
-public partial class Driver
+public class Driver : IDataType
 {
     private byte permanentNumberField;
 

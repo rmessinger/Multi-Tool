@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using WebTools.Interfaces;
 
 namespace WebTools.Model
 {
@@ -10,11 +12,11 @@ namespace WebTools.Model
     [System.Xml.Serialization.XmlRootAttribute("MRData", Namespace = "http://ergast.com/mrd/1.4", IsNullable = false)]
     public partial class StandingsResponse : Response
     {
-        private StandingsTable[] standingsTableField;
+        private StandingsList[] standingsTableField;
 
         /// <remarks/>
         [System.Xml.Serialization.XmlArrayItemAttribute("StandingsTable", IsNullable = true)]
-        public StandingsTable[] StandingsTable
+        public StandingsList[] StandingsTable
         {
             get
             {

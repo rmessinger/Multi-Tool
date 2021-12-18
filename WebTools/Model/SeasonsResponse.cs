@@ -10,21 +10,21 @@ namespace WebTools.Model
     [System.ComponentModel.DesignerCategoryAttribute("code")]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType = true, Namespace = "http://ergast.com/mrd/1.4")]
     [System.Xml.Serialization.XmlRootAttribute("MRData", Namespace = "http://ergast.com/mrd/1.4", IsNullable = false)]
-    public partial class RaceResponse : Response
+    public class SeasonsResponse : Response
     {
-        private Race[] raceTableField;
+        private Season[] seasonTableField;
 
         /// <remarks/>
-        [System.Xml.Serialization.XmlArrayItemAttribute("Race", IsNullable = true)]
-        public Race[] RaceTable
+        [System.Xml.Serialization.XmlArrayItemAttribute("Season", IsNullable = true)]
+        public Season[] SeasonTable
         {
             get
             {
-                return this.raceTableField;
+                return this.seasonTableField;
             }
             set
             {
-                this.raceTableField = value;
+                this.seasonTableField = value;
             }
         }
     }

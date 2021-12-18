@@ -4,7 +4,6 @@
 [System.Xml.Serialization.XmlTypeAttribute(AnonymousType = true, Namespace = "http://ergast.com/mrd/1.4")]
 public partial class ConstructorStanding
 {
-
     private Constructor constructorField;
 
     private byte positionField;
