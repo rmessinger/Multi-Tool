@@ -15,6 +15,7 @@ namespace WebTools
         private const string CacheDirectory = "C:\\Users\\reidm\\OneDrive\\Documents\\F1Stats\\";
         private const string SeasonsUrlBase = "http://ergast.com/api/f1/seasons";
         private const string RacesInSeasonBase = "http://ergast.com/api/f1/";
+        private const string AllDriversUrl = "http://ergast.com/api/f1/drivers?=123";
 
         private XmlSerializer seasonSerializer;
         private XmlSerializer raceSerializer;
@@ -35,60 +36,63 @@ namespace WebTools
 
         public void Run()
         {
-            // var client = new RestClient("http://ergast.com/api/f1/drivers?=123");
-            // var client = new RestClient("http://ergast.com/api/f1/2021");
-            
             // get all seasons
-            SeasonsResponse allSeasons = (SeasonsResponse)this.GetFullSeasonTable(SeasonsUrlBase);
+            DateTime startTime = DateTime.Now;
+            SeasonsResponse allSeasons = (SeasonsResponse)this.GetFullSeasonTable();
             IDictionary<int, RaceResponse> racesResponse = new Dictionary<int, RaceResponse>();
-
+            LogToConsole("Got all seasons. Getting race tables");
             foreach (Season season in allSeasons.SeasonTable)
             {
-                racesResponse.Add(season.Value, (RaceResponse)this.GetFullRaceTable(RacesInSeasonBase + season.Value.ToString()));
+                racesResponse.Add(season.Value, (RaceResponse)this.GetFullRaceTable(season.Value));
             }
+
+            TimeSpan elapsed = DateTime.Now - startTime;
+            LogToConsole($"Execution took {elapsed.TotalMilliseconds}ms");
         }
 
-        private Response GetFullSeasonTable(string urlBase)
+        private Response GetFullSeasonTable()
         {
-            StringBuilder url = new StringBuilder(urlBase);
-            SeasonsResponse result = (SeasonsResponse)this.GetPage(url.ToString(), this.seasonSerializer);
+            StringBuilder url = new StringBuilder(SeasonsUrlBase);
+            SeasonsResponse result = this.GetPage<SeasonsResponse>(url.ToString(), this.seasonSerializer);
+            LogToConsole($"Retrieved seasons {result.SeasonTable.First()?.Value} through {result.SeasonTable.LastOrDefault()?.Value}");
             int limit = result.limit;
             
-            // Initialize list of seasons
             while (result.SeasonTable.Length < result.total)
             {
                 url.Append($"?limit={limit}&offset={result.SeasonTable.Length}");
-                SeasonsResponse response = (SeasonsResponse)this.GetPage(url.ToString(), this.seasonSerializer);
+                SeasonsResponse response = this.GetPage<SeasonsResponse>(url.ToString(), this.seasonSerializer);
+                LogToConsole($"Retrieved seasons {response.SeasonTable.First()?.Value} through {response.SeasonTable.LastOrDefault()?.Value}");
                 result.SeasonTable = result.SeasonTable.Concat(response.SeasonTable).ToArray();
             }
 
             return result;
         }
 
-        private Response GetFullRaceTable(string urlBase)
+        private Response GetFullRaceTable(int year)
         {
-            StringBuilder url = new StringBuilder(urlBase);
-            RaceResponse result = (RaceResponse)this.GetPage(url.ToString(), this.raceSerializer);
+            StringBuilder url = new StringBuilder(RacesInSeasonBase + year.ToString());
+            RaceResponse result = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
+            LogToConsole($"Retrieved {year} rounds {result.RaceTable.First()?.round} through {result.RaceTable.LastOrDefault()?.round}");
             int limit = result.limit;
 
-            // Initialize list of seasons
             while (result.RaceTable.Length < result.total)
             {
                 url.Append($"?limit={limit}&offset={result.RaceTable.Length}");
-                RaceResponse response = (RaceResponse)this.GetPage(url.ToString(), this.raceSerializer);
+                RaceResponse response = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
+                LogToConsole($"Retrieved {year} rounds {response.RaceTable.First()?.round} through {response.RaceTable.LastOrDefault()?.round}");
                 result.RaceTable = result.RaceTable.Concat(response.RaceTable).ToArray();
             }
 
             return result;
         }
 
-        private Response GetPage(string url, XmlSerializer serializer)
+        private T GetPage<T>(string url, XmlSerializer serializer)
         {
             var client = new RestClient(url.ToString());
             client.Timeout = -1;
             var request = new RestRequest(Method.GET);
             IRestResponse response = client.Execute(request);
-            Response result = (Response)serializer.Deserialize(GenerateStreamFromString(response.Content));
+            T result = (T)serializer.Deserialize(GenerateStreamFromString(response.Content));
             return result;
         }
 
@@ -107,6 +111,13 @@ namespace WebTools
             writer.Flush();
             stream.Position = 0;
             return stream;
+        }
+
+        private static void LogToConsole(string s)
+        {
+            string prefix = DateTime.Now.Year + "-" + DateTime.Now.Month + "-" + DateTime.Now.Day + " " + (DateTime.Now.Hour < 10 ? "0" : "") + 
+                DateTime.Now.Hour + ":" + DateTime.Now. Minute + ":" + DateTime.Now.Second + "." + DateTime.Now.Millisecond + " - ";
+            Console.WriteLine(prefix + s);
         }
     }
 }
