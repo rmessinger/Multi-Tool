@@ -27,5 +27,15 @@ namespace WebTools.Model
                 this.seasonTableField = value;
             }
         }
+
+        public override object[] GetTable()
+        {
+            return this.SeasonTable;
+        }
+
+        public override void AppendToTable(object[] newItems)
+        {
+            this.seasonTableField = this.seasonTableField.Concat((Season[])newItems).ToArray();
+        }
     }
 }

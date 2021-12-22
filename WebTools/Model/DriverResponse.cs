@@ -25,5 +25,15 @@ namespace WebTools.Model
                 this.driverTableField = value;
             }
         }
+
+        public override object[] GetTable()
+        {
+            return this.DriverTable;
+        }
+
+        public override void AppendToTable(object[] newItems)
+        {
+            this.driverTableField = this.driverTableField.Concat((Driver[])newItems).ToArray();
+        }
     }
 }

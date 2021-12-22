@@ -94,5 +94,15 @@ namespace WebTools.Model
                 this.totalField = value;
             }
         }
+
+        public virtual object[] GetTable()
+        {
+            return null;
+        }
+
+        public virtual void AppendToTable(object[] newItems)
+        {
+
+        }
     }
 }

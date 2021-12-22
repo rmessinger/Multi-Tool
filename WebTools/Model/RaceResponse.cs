@@ -27,5 +27,15 @@ namespace WebTools.Model
                 this.raceTableField = value;
             }
         }
+
+        public override object[] GetTable()
+        {
+            return this.RaceTable;
+        }
+
+        public override void AppendToTable(object[] newItems)
+        {
+            this.raceTableField = this.raceTableField.Concat((Race[])newItems).ToArray();
+        }
     }
 }

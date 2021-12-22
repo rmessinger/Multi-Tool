@@ -26,5 +26,15 @@ namespace WebTools.Model
                 this.constructorTableField = value;
             }
         }
+
+        public override object[] GetTable()
+        {
+            return this.ConstructorTable;
+        }
+
+        public override void AppendToTable(object[] newItems)
+        {
+            this.constructorTableField = this.constructorTableField.Concat((Constructor[])newItems).ToArray();
+        }
     }
 }

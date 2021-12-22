@@ -1,4 +1,5 @@
-﻿using System;
+﻿using static WebTools.Constants;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Xml.Serialization;
@@ -12,17 +13,16 @@ namespace WebTools
 {
     public class F1Stats
     {
-        private const string CacheDirectory = "C:\\Users\\reidm\\OneDrive\\Documents\\F1Stats\\";
-        private const string SeasonsUrlBase = "http://ergast.com/api/f1/seasons";
-        private const string RacesInSeasonBase = "http://ergast.com/api/f1/";
-        private const string AllDriversUrl = "http://ergast.com/api/f1/drivers?=123";
-
         private XmlSerializer seasonSerializer;
         private XmlSerializer raceSerializer;
         private XmlSerializer driverSerializer;
         private XmlSerializer constructorSerializer;
         private XmlSerializer standingsSerializer;
         private XmlSerializer statusSerializer;
+
+        private SeasonsResponse allSeasons;
+
+        private string seasonsCache = CacheDirectory + SeasonsFileName + FileExtension;
 
         public F1Stats()
         {
@@ -38,49 +38,82 @@ namespace WebTools
         {
             // get all seasons
             DateTime startTime = DateTime.Now;
-            SeasonsResponse allSeasons = (SeasonsResponse)this.GetFullSeasonTable();
+            // this.allSeasons = (SeasonsResponse)this.PopulateSeasonsTable();
+            this.allSeasons = (SeasonsResponse)this.PopulateTable<SeasonsResponse>(this.seasonsCache, SeasonsUrlBase, this.seasonSerializer);
+            // this.SaveResults("Seasons", allSeasons, seasonSerializer, false);
             IDictionary<int, RaceResponse> racesResponse = new Dictionary<int, RaceResponse>();
             LogToConsole("Got all seasons. Getting race tables");
             foreach (Season season in allSeasons.SeasonTable)
             {
-                racesResponse.Add(season.Value, (RaceResponse)this.GetFullRaceTable(season.Value));
+                string seasonCache = CacheDirectory + season.Value + " " + RacesSuffix + FileExtension;
+                string url = RacesInSeasonBase + season.Value.ToString();
+                // RaceResponse raceResponse = (RaceResponse)this.PopulateRaceTable(season.Value);
+                RaceResponse raceResponse = (RaceResponse)this.PopulateTable<RaceResponse>(seasonCache, url, this.raceSerializer);
+                foreach (Race race in raceResponse.RaceTable)
+                {
+                    string raceResultUrl = url + "/" + race.round + "/results";
+                    // Table population needs to be changed for race results. Currently returns a single root element
+                    // Need a way to count a sub-table
+                    RaceResponse raceResults = (RaceResponse)this.PopulateTable<RaceResponse>("", raceResultUrl, this.raceSerializer);
+                }
+                // this.SaveResults(season.Value + " Races", raceResponse, raceSerializer, true);
+                racesResponse.Add(season.Value, raceResponse);
             }
 
             TimeSpan elapsed = DateTime.Now - startTime;
             LogToConsole($"Execution took {elapsed.TotalMilliseconds}ms");
         }
 
-        private Response GetFullSeasonTable()
+        private Response PopulateTable<T>(string cacheFile, string urlBase, XmlSerializer serializer, bool useCache = true) where T : Response
         {
-            StringBuilder url = new StringBuilder(SeasonsUrlBase);
-            SeasonsResponse result = this.GetPage<SeasonsResponse>(url.ToString(), this.seasonSerializer);
-            LogToConsole($"Retrieved seasons {result.SeasonTable.First()?.Value} through {result.SeasonTable.LastOrDefault()?.Value}");
-            int limit = result.limit;
-            
-            while (result.SeasonTable.Length < result.total)
+            T result;
+            if (useCache && File.Exists(cacheFile))
             {
-                url.Append($"?limit={limit}&offset={result.SeasonTable.Length}");
-                SeasonsResponse response = this.GetPage<SeasonsResponse>(url.ToString(), this.seasonSerializer);
-                LogToConsole($"Retrieved seasons {response.SeasonTable.First()?.Value} through {response.SeasonTable.LastOrDefault()?.Value}");
-                result.SeasonTable = result.SeasonTable.Concat(response.SeasonTable).ToArray();
+                LogToConsole("Found cache file. Populating from local cache");
+                result = LoadFromFile<T>(cacheFile, serializer);
+            }
+            else
+            {
+                StringBuilder url = new StringBuilder(urlBase);
+                result = this.GetPage<T>(url.ToString(), serializer);
+                LogToConsole($"Retrieved items {1} through {result.GetTable().Length}");
+                int limit = result.limit;
+
+                while (result.GetTable().Length < result.total)
+                {
+                    url.Append($"?limit={limit}&offset={result.GetTable().Length}");
+                    T response = this.GetPage<T>(url.ToString(), serializer);
+                    result.AppendToTable(response.GetTable());
+                    LogToConsole($"Retrieved items {response.offset} through {result.GetTable().Length}");
+                }
             }
 
             return result;
         }
 
-        private Response GetFullRaceTable(int year)
+        private Response PopulateRaceTable(int year)
         {
-            StringBuilder url = new StringBuilder(RacesInSeasonBase + year.ToString());
-            RaceResponse result = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
-            LogToConsole($"Retrieved {year} rounds {result.RaceTable.First()?.round} through {result.RaceTable.LastOrDefault()?.round}");
-            int limit = result.limit;
-
-            while (result.RaceTable.Length < result.total)
+            RaceResponse result;
+            string cacheFile = CacheDirectory + year + " " + RacesSuffix + FileExtension;
+            if (File.Exists(cacheFile))
             {
-                url.Append($"?limit={limit}&offset={result.RaceTable.Length}");
-                RaceResponse response = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
-                LogToConsole($"Retrieved {year} rounds {response.RaceTable.First()?.round} through {response.RaceTable.LastOrDefault()?.round}");
-                result.RaceTable = result.RaceTable.Concat(response.RaceTable).ToArray();
+                LogToConsole("Found races file. Populating from local cache");
+                result = LoadFromFile<RaceResponse>(cacheFile, this.raceSerializer);
+            }
+            else
+            {
+                StringBuilder url = new StringBuilder(RacesInSeasonBase + year.ToString());
+                result = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
+                LogToConsole($"Retrieved {year} rounds {result.RaceTable.First()?.round} through {result.RaceTable.LastOrDefault()?.round}");
+                int limit = result.limit;
+
+                while (result.RaceTable.Length < result.total)
+                {
+                    url.Append($"?limit={limit}&offset={result.RaceTable.Length}");
+                    RaceResponse response = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
+                    LogToConsole($"Retrieved {year} rounds {response.RaceTable.First()?.round} through {response.RaceTable.LastOrDefault()?.round}");
+                    result.RaceTable = result.RaceTable.Concat(response.RaceTable).ToArray();
+                }
             }
 
             return result;
@@ -96,9 +129,20 @@ namespace WebTools
             return result;
         }
 
-        private void SaveResults(string fileName, Response result, XmlSerializer serializer)
+        private T LoadFromFile<T>(string path, XmlSerializer serializer)
         {
-            string path = CacheDirectory + fileName;
+            System.IO.FileStream file = System.IO.File.OpenRead(path);
+            return (T)serializer.Deserialize(file);
+        }
+
+        private void SaveResults(string fileName, Response result, XmlSerializer serializer, bool replace)
+        {
+            string path = CacheDirectory + fileName + FileExtension;
+            if (replace && File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
             System.IO.FileStream file = System.IO.File.OpenWrite(path);
             serializer.Serialize(file, result);
         }

@@ -27,5 +27,15 @@ namespace WebTools.Model
                 this.statusTableField = value;
             }
         }
+
+        public override object[] GetTable()
+        {
+            return this.StatusTable;
+        }
+
+        public override void AppendToTable(object[] newItems)
+        {
+            this.statusTableField = this.statusTableField.Concat((Status[])newItems).ToArray();
+        }
     }
 }
