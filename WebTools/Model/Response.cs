@@ -95,14 +95,13 @@ namespace WebTools.Model
             }
         }
 
-        public virtual object[] GetTable()
+        public virtual object[] GetTable(ResponseType subResponse)
         {
             return null;
         }
 
         public virtual void AppendToTable(object[] newItems)
         {
-
         }
     }
 }

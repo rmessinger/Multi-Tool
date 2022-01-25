@@ -26,7 +26,7 @@ namespace WebTools.Model
             }
         }
 
-        public override object[] GetTable()
+        public override object[] GetTable(ResponseType subResponse)
         {
             return this.DriverTable;
         }

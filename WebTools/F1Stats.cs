@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.IO;
 using RestSharp;
 using WebTools.Model;
-using System.Linq;
+using Shared;
 
 namespace WebTools
 {
@@ -42,7 +42,7 @@ namespace WebTools
             this.allSeasons = (SeasonsResponse)this.PopulateTable<SeasonsResponse>(this.seasonsCache, SeasonsUrlBase, this.seasonSerializer);
             // this.SaveResults("Seasons", allSeasons, seasonSerializer, false);
             IDictionary<int, RaceResponse> racesResponse = new Dictionary<int, RaceResponse>();
-            LogToConsole("Got all seasons. Getting race tables");
+            ConsoleUtilities.Log("Got all seasons. Getting race tables");
             foreach (Season season in allSeasons.SeasonTable)
             {
                 string seasonCache = CacheDirectory + season.Value + " " + RacesSuffix + FileExtension;
@@ -61,7 +61,7 @@ namespace WebTools
             }
 
             TimeSpan elapsed = DateTime.Now - startTime;
-            LogToConsole($"Execution took {elapsed.TotalMilliseconds}ms");
+            ConsoleUtilities.Log($"Execution took {elapsed.TotalMilliseconds}ms");
         }
 
         private Response PopulateTable<T>(string cacheFile, string urlBase, XmlSerializer serializer, bool useCache = true) where T : Response
@@ -69,50 +69,22 @@ namespace WebTools
             T result;
             if (useCache && File.Exists(cacheFile))
             {
-                LogToConsole("Found cache file. Populating from local cache");
+                ConsoleUtilities.Log("Found cache file. Populating from local cache");
                 result = LoadFromFile<T>(cacheFile, serializer);
             }
             else
             {
                 StringBuilder url = new StringBuilder(urlBase);
                 result = this.GetPage<T>(url.ToString(), serializer);
-                LogToConsole($"Retrieved items {1} through {result.GetTable().Length}");
+                ConsoleUtilities.Log($"Retrieved items {1} through {result.GetTable(ResponseType.Status).Length}");
                 int limit = result.limit;
 
-                while (result.GetTable().Length < result.total)
+                while (result.GetTable(ResponseType.Status).Length < result.total)
                 {
-                    url.Append($"?limit={limit}&offset={result.GetTable().Length}");
+                    url.Append($"?limit={limit}&offset={result.GetTable(ResponseType.Status).Length}");
                     T response = this.GetPage<T>(url.ToString(), serializer);
-                    result.AppendToTable(response.GetTable());
-                    LogToConsole($"Retrieved items {response.offset} through {result.GetTable().Length}");
-                }
-            }
-
-            return result;
-        }
-
-        private Response PopulateRaceTable(int year)
-        {
-            RaceResponse result;
-            string cacheFile = CacheDirectory + year + " " + RacesSuffix + FileExtension;
-            if (File.Exists(cacheFile))
-            {
-                LogToConsole("Found races file. Populating from local cache");
-                result = LoadFromFile<RaceResponse>(cacheFile, this.raceSerializer);
-            }
-            else
-            {
-                StringBuilder url = new StringBuilder(RacesInSeasonBase + year.ToString());
-                result = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
-                LogToConsole($"Retrieved {year} rounds {result.RaceTable.First()?.round} through {result.RaceTable.LastOrDefault()?.round}");
-                int limit = result.limit;
-
-                while (result.RaceTable.Length < result.total)
-                {
-                    url.Append($"?limit={limit}&offset={result.RaceTable.Length}");
-                    RaceResponse response = this.GetPage<RaceResponse>(url.ToString(), this.raceSerializer);
-                    LogToConsole($"Retrieved {year} rounds {response.RaceTable.First()?.round} through {response.RaceTable.LastOrDefault()?.round}");
-                    result.RaceTable = result.RaceTable.Concat(response.RaceTable).ToArray();
+                    result.AppendToTable(response.GetTable(ResponseType.Status));
+                    ConsoleUtilities.Log($"Retrieved items {response.offset} through {result.GetTable(ResponseType.Status).Length}");
                 }
             }
 
@@ -155,13 +127,6 @@ namespace WebTools
             writer.Flush();
             stream.Position = 0;
             return stream;
-        }
-
-        private static void LogToConsole(string s)
-        {
-            string prefix = DateTime.Now.Year + "-" + DateTime.Now.Month + "-" + DateTime.Now.Day + " " + (DateTime.Now.Hour < 10 ? "0" : "") + 
-                DateTime.Now.Hour + ":" + DateTime.Now. Minute + ":" + DateTime.Now.Second + "." + DateTime.Now.Millisecond + " - ";
-            Console.WriteLine(prefix + s);
         }
     }
 }

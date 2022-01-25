@@ -2,8 +2,8 @@
 using System;
 using WebTools;
 
-// Decider application = new Decider();
-F1Stats application = new F1Stats();
+Decider application = new Decider();
+// F1Stats application = new F1Stats();
 application.Run();
 
 // Console.ReadLine();
