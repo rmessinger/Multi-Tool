@@ -1,4 +1,5 @@
-﻿using NetSpell.SpellChecker;
+﻿using ICSharpCode.SharpZipLib.BZip2;
+using NetSpell.SpellChecker;
 using NetSpell.SpellChecker.Dictionary;
 using Shared;
 using System;
@@ -6,30 +7,57 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace TextTools
 {
+    public class HashKey<T> : HashSet<T>
+    {
+        public override bool Equals(object obj)
+        {
+            return this.SetEquals(obj as ISet<T>);
+        }
+
+        public override int GetHashCode()
+        {
+            int hashCode = 0;
+            foreach(char c in this as HashKey<char>)
+            {
+                hashCode += (int)c;
+            }
+
+            hashCode *= this.Count;
+            return hashCode;
+        }
+    }
+
     public class WordGenerator
     {
-        private ISet<string> words;
         private const string FileName = "generatedWords.txt";
+        private const string startTag = "<";
+        private const string endTag = "/>";
+        private const int targetLength = 5;
+
+        private ISet<Word> words;
+        private IList<string> replacementTokens = new List<string>() { "<.*?>", "[^0-9A-Za-z ,]", @"\s+" };
         private char[] alphabetArray;
         private object lockObject = new object();
         private CountdownEvent finished;
-        private IDictionary<ISet<char>, IList<string>> wordsByCharCombination;
+        private IDictionary<HashKey<char>, IList<string>> wordsByCharCombination;
 
         public WordGenerator()
         {
             string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             this.alphabetArray = alphabet.ToCharArray();
-            this.wordsByCharCombination = new Dictionary<ISet<char>, IList<string>>();
+            this.wordsByCharCombination = new Dictionary<HashKey<char>, IList<string>>();
         }
 
         public void Run()
         {
-            this.words = new HashSet<string>();
+            this.words = new HashSet<Word>();
 
             DateTime startTime = DateTime.Now;
 
@@ -38,77 +66,128 @@ namespace TextTools
                 this.finished = new CountdownEvent(26);
                 string testWord = string.Empty;
 
-                foreach(char letter in this.alphabetArray)
+                foreach (char letter in this.alphabetArray)
                 {
                     Thread task = new Thread(() => GenerateWords(letter));
                     task.Start();
                 }
 
                 this.finished.Wait();
-                File.WriteAllLines(FileName, words);
+                // File.WriteAllLines(FileName, words);
             }
             else
             {
-                foreach(string word in File.ReadAllLines(FileName))
+                foreach (string word in File.ReadAllLines(FileName))
                 {
-                    words.Add(word);
+                    words.Add(new Word(word));
                     char[] wordLetters = new List<char>(word).Distinct().ToArray();
-                    this.PopulateCombinations(word, wordLetters, new HashSet<char>());
+                    this.PopulateCombinations(word, wordLetters.ToHashSet<char>());
                 }
             }
 
+            var filename = "G:\\Books\\enwiki-20220101-pages-articles-multistream\\enwiki-20220101-pages-articles-multistream.xml.bz2";
+
+            var settings = new XmlReaderSettings()
+            {
+                ValidationType = ValidationType.None,
+                ConformanceLevel = ConformanceLevel.Auto // Fragment ?
+            };
+
+            using (var stream = File.Open(filename, FileMode.Open))
+            using (var bz2 = new BZip2InputStream(stream))
+            using (var reader = new StreamReader(bz2))
+            {
+                int bz2chunkSize = 600;
+                uint lineCount = 0;
+                while (bz2.Position < bz2.Length)
+                {
+                    byte[] data = new byte[1024];
+                    bz2.Read(data, 0, 600);
+
+                    while (!reader.EndOfStream)
+                    {
+                        ++lineCount;
+                        string line = reader.ReadLine();
+                        ConsoleUtilities.Log(line);
+                        bool skip = false;
+
+                        foreach (string token in this.replacementTokens)
+                        {
+                            line = Regex.Replace(line, token, "");
+                            ConsoleUtilities.Log(line);
+
+                            if (line.Length < targetLength)
+                            {
+                                skip = true;
+                                break;
+                            }
+                        }
+
+                        if (skip)
+                        {
+                            continue;
+                        }
+
+                        string[] words = line.Split(' ');
+
+                        foreach (string word in words)
+                        {
+                            if (this.words.Contains(new Word(word)))
+                            {
+
+                            }
+                        }
+                    }
+                }
+                ConsoleUtilities.Log($"Processed {lineCount} lines");
+            }
             TimeSpan elapsed = DateTime.Now - startTime;
             ConsoleUtilities.Log($"Execution took {elapsed.TotalMilliseconds}ms");
         }
 
-        private void PopulateCombinations(string word, char[] wordLetters, ISet<char> workingCombination)
+        private void PopulateCombinations(string word, ISet<char> uniqueLetters)
         {
-            int index = 0;
-
-            // for each letter in the word, iterate forward with each n=2 combination
-            // after all n=2 combinations, combine current letter with next
-            // for each letter after the current combination, iterate forward
-            foreach (char letter in wordLetters)
+            foreach (var result in Subsets<char>(uniqueLetters))
             {
-                ISet<char> combination = new HashSet<char>(workingCombination);
-                combination.Add(letter);
-                if (!this.wordsByCharCombination.ContainsKey(combination))
+                if (result.Count() == 0)
                 {
-                    this.wordsByCharCombination.Add(combination, new List<string>());
+                    continue;
                 }
 
-                this.wordsByCharCombination[combination].Add(word);
-                int letterPosition = Array.IndexOf(wordLetters, letter);
-                if (wordLetters.Length > 1)
+                HashKey<char> key = result as HashKey<char>;
+                if (!this.wordsByCharCombination.ContainsKey(key))
                 {
-                    char[] subset = new ArraySegment<char>(wordLetters, letterPosition + 1, wordLetters.Length - 1).ToArray();
-                    this.PopulateCombinations(word, subset, combination);
+                    this.wordsByCharCombination.Add(key, new List<string>());
                 }
+                else
+                {
+                    ;
+                }
+
+                this.wordsByCharCombination[key].Add(word);
             }
         }
 
-        private IEnumerable<int[]> Combinations(int m, int n)
+        public static IEnumerable<IEnumerable<T>> Subsets<T>(IEnumerable<T> source)
         {
-            int[] result = new int[m];
-            Stack<int> stack = new Stack<int>();
-            stack.Push(0);
+            List<T> list = source.ToList();
+            int length = list.Count;
+            int max = (int)Math.Pow(2, list.Count);
 
-            while (stack.Count > 0)
+            for (int count = 0; count < max; count++)
             {
-                int index = stack.Count - 1;
-                int value = stack.Pop();
-
-                while (value < n)
+                ISet<T> subset = new HashKey<T>();
+                uint rs = 0;
+                while (rs < length)
                 {
-                    result[index++] = ++value;
-                    stack.Push(value);
-
-                    if (index == m)
+                    if ((count & (1u << (int)rs)) > 0)
                     {
-                        yield return result;
-                        break;
+                        subset.Add(list[(int)rs]);
                     }
+                    rs++;
                 }
+
+                yield return subset;
             }
         }
 
@@ -138,7 +217,7 @@ namespace TextTools
                             testWord = new string(wordBuilder);
                             if (spellCheck.TestWord(testWord))
                             {
-                                words.Add(testWord);
+                                words.Add(new Word(testWord));
                             }
                         }
                     }
